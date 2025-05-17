@@ -19,6 +19,19 @@ cd rknn-toolkit2-webui-for-docker
 chmod +x ./install.sh && ./install.sh
 ```
 
+## Alternative: One-Line Install (Linux, with wget)
+
+For Linux users who want to install everything automatically:
+
+```sh
+wget -O - https://raw.githubusercontent.com/Nnamllit1/rknn-toolkit2-webui-for-docker/main/auto_install.sh | bash
+```
+
+- Downloads the repository, sets permissions, and runs the install script automatically.
+- After completion, the Web UI is available as described above.
+
+---
+
 ### 2. Access the Web UI
 Open [http://localhost:5000](http://localhost:5000) or use the IP shown after install.
 
