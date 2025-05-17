@@ -14,9 +14,9 @@ A modern, Dockerized Flask web interface to simplify and visualize the rknn-tool
 
 ### 1. Clone & Build
 ```sh
-git clone <repo-url>
-cd docker
-./install.sh
+git clone https://github.com/Nnamllit1/rknn-toolkit2-webui-for-docker.git
+cd rknn-toolkit2-webui-for-docker
+chmod +x ./install.sh && ./install.sh
 ```
 
 ### 2. Access the Web UI
