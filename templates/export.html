@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Export / convert RKNN Model | RKNN Toolkit2 Web UI{% endblock %}
+{% block content %}
+    <h1><i class="fas fa-file-export"></i> Export / convert RKNN Model</h1>
+    <form id="convert-form" method="post" enctype="multipart/form-data">
+        <div style="margin-bottom:18px;">
+            <label for="model_file">Upload ONNX Model:</label><br>
+            <input type="file" id="model_file" name="model_file" accept=".onnx" required>
+        </div>
+        <div style="margin-bottom:18px;">
+            <label for="platform">Target Platform:</label><br>
+            <select id="platform" name="platform" class="cli-input" style="max-width:350px;">
+                <option value="" {% if not default_platform %}selected{% endif %}>-- Select platform --</option>
+                {% for p in platforms %}
+                <option value="{{ p }}" {% if default_platform == p %}selected{% endif %}>{{ p }}</option>
+                {% endfor %}
+            </select>
+            {% if default_platform %}
+            <div style="font-size:0.95em;color:#888;margin-top:4px;">Default: {{ default_platform }}</div>
+            {% endif %}
+        </div>
+        <div style="margin-bottom:18px;">
+            <label for="dtype">Model Type:</label><br>
+            <select id="dtype" name="dtype" class="cli-input" style="max-width:350px;">
+                <option value="fp">FP (float)</option>
+                <option value="i8">INT8 (quantized)</option>
+                <option value="u8">UINT8 (quantized)</option>
+            </select>
+        </div>
+        <button type="submit" id="convert-btn"><i class="fas fa-cogs"></i> Convert</button>
+    </form>
+    {% if message %}
+    <div style="margin-top:18px;color:#0078d7;">{{ message }}</div>
+    {% endif %}
+    <div id="live-log" style="margin-top:18px;display:none;">
+        <strong>Conversion Log:</strong>
+        <pre id="log-output" style="background:#181818;color:#0f0;padding:12px;border-radius:7px;max-height:400px;overflow:auto;"></pre>
+    </div>
+    <script>
+    document.getElementById('convert-form').onsubmit = async function(e) {
+        e.preventDefault();
+        document.getElementById('live-log').style.display = 'block';
+        document.getElementById('log-output').textContent = '';
+        const btn = document.getElementById('convert-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Converting...';
+        const form = e.target;
+        const formData = new FormData(form);
+        const resp = await fetch(form.action || window.location.pathname, {
+            method: 'POST',
+            body: formData
+        });
+        const html = await resp.text();
+        // Extract task_id from the returned HTML
+        const match = html.match(/name="task_id" value="([^"]+)"/);
+        let task_id = null;
+        if (match) task_id = match[1];
+        else {
+            // fallback: try to get from JS variable if rendered
+            const tid = window.task_id;
+            if (tid) task_id = tid;
+        }
+        if (task_id) {
+            const evtSource = new EventSource(`/convert_stream/${task_id}`);
+            evtSource.onmessage = function(e) {
+                if (e.data) {
+                    document.getElementById('log-output').textContent += e.data + "\n";
+                    document.getElementById('log-output').scrollTop = document.getElementById('log-output').scrollHeight;
+                }
+            };
+            evtSource.onerror = function() {
+                evtSource.close();
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-cogs"></i> Convert';
+            };
+            evtSource.addEventListener('end', function() {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-cogs"></i> Convert';
+            });
+        } else {
+            document.getElementById('log-output').textContent = 'No conversion started.';
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-cogs"></i> Convert';
+        }
+    };
+    </script>
+    {% if task_id %}
+    <input type="hidden" id="task_id" name="task_id" value="{{ task_id }}">
+    <script>window.task_id = "{{ task_id }}";</script>
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}RKNN Toolkit2 Web UI{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+    {% block head %}{% endblock %}
+</head>
+<body>
+<button class="theme-toggle" onclick="toggleTheme()" title="Toggle Dark/Light Mode"><i id="theme-icon" class="fas fa-moon"></i></button>
+<div class="app-layout">
+    <div class="sidebar-nav">
+        <nav>
+            <ul>
+                <li><a href="/" class="nav-home"><i class="fas fa-home"></i> Home</a></li>
+                <li><a href="/export" class="nav-export"><i class="fas fa-file-export"></i> Export / convert RKNN Model</a></li>
+                <li><a href="/files" class="nav-files"><i class="fas fa-folder-open"></i> Files</a></li>
+                <li><a href="/settings" class="nav-settings"><i class="fas fa-cog"></i> Settings</a></li>
+            </ul>
+        </nav>
+    </div>
+    <div class="main-content">
+        {% block content %}{% endblock %}
+    </div>
+</div>
+{% if config %}
+<script type="text/javascript">
+  window.config = {{ config|tojson|safe }};
+</script>
+{% endif %}
+<script src="/static/theme.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

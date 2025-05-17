@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Files | RKNN Toolkit2 Web UI{% endblock %}
+{% block content %}
+    <h1><i class="fas fa-folder-open"></i> Files</h1>
+    <h2>Uploaded ONNX Models</h2>
+    <ul>
+    {% for f in uploaded %}
+        <li>{{ f }}
+            <a href="/download/uploads/{{ f }}" title="Download"><i class="fas fa-download"></i></a>
+            <form method="post" action="/delete/uploads/{{ f }}" style="display:inline;">
+                <button type="submit" onclick="return confirm('Delete {{ f }}?');" title="Delete"><i class="fas fa-trash"></i></button>
+            </form>
+        </li>
+    {% else %}
+        <li>No uploaded files.</li>
+    {% endfor %}
+    </ul>
+    <h2>Converted RKNN Models</h2>
+    <ul>
+    {% for f in converted %}
+        <li>{{ f }}
+            <a href="/download/converted/{{ f }}" title="Download"><i class="fas fa-download"></i></a>
+            <form method="post" action="/delete/converted/{{ f }}" style="display:inline;">
+                <button type="submit" onclick="return confirm('Delete {{ f }}?');" title="Delete"><i class="fas fa-trash"></i></button>
+            </form>
+        </li>
+    {% else %}
+        <li>No converted files.</li>
+    {% endfor %}
+    </ul>
+{% endblock %}
