@@ -9,6 +9,8 @@ A modern, Dockerized Flask web interface to simplify and visualize the rknn-tool
 - **Dark/Light mode** (persistent)
 - **Server info display** (optional)
 - **Dockerized deployment**
+- **MySQL/MariaDB support via SQLAlchemy**
+- **ARM/Embedded ready (host network support)**
 
 ## Quickstart
 
@@ -28,34 +30,34 @@ wget -O - https://raw.githubusercontent.com/Nnamllit1/rknn-toolkit2-webui-for-do
 ```
 
 - Downloads the repository, sets permissions, and runs the install script automatically.
-- After completion, the Web UI is available as described above.
+- After completion, the Web UI is available as described below.
 
 ---
 
 ### 2. Access the Web UI
-Open [http://localhost:5000](http://localhost:5000) or use the IP shown after install.
+Open [http://localhost:5000](http://localhost:5000) or use your device's IP (e.g. http://192.168.x.x:5000).
 
-### 3. Configuration
+### 3. Docker Compose Notes (ARM/Embedded)
+- On embedded systems (e.g. Luckfox), `network_mode: host` is used so that port mapping and name resolution work reliably.
+- In your `docker-compose.yml`, set for the web service: `network_mode: host` and `DB_HOST=127.0.0.1`.
+- The database also runs in host network mode.
+
+### 4. Configuration
 - Edit `config.json` or use `./manage.sh config set <key> <value>`
 - Example: `./manage.sh config set default_platform "rk3576"`
 
-### 4. Usage
+### 5. Usage
 - Upload ONNX models and convert to RKNN via the web UI.
 - Download or delete models on the Files page.
 - View server info and settings on the Settings page.
 
-## Folder Structure
-- `app.py` – Flask backend
-- `convert.py` – ONNX to RKNN conversion script
-- `templates/` – Jinja2 HTML templates
-- `static/` – CSS/JS assets
-- `uploads/` – Uploaded ONNX models (ignored by git)
-- `converted/` – Converted RKNN models (ignored by git)
-- `config.json` – Global config (ignored by git, see `config.example.json`)
+## Database
+- Metadata is stored in a MySQL/MariaDB database (via SQLAlchemy).
+- The Python package `cryptography` is now required (see `requirements.txt`).
 
 ## Development
-- Use `docker-compose.yml` for container management
-- Use `manage.sh` for config and container control
+- Use `docker-compose.yml` for container management.
+- Use `manage.sh` for config and container control.
 
 ## License
 MIT License

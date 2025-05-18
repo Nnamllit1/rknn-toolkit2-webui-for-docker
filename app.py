@@ -8,23 +8,87 @@ import socket
 import psutil
 import threading
 import queue
+import datetime
+import sqlite3
+from flask_sqlalchemy import SQLAlchemy
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config.json')
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
 CONVERTED_FOLDER = os.path.join(os.path.dirname(__file__), 'converted')
 ALLOWED_EXTENSIONS = {'onnx'}
+DB_PATH = os.path.join(os.path.dirname(__file__), 'file_infos.db')
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(CONVERTED_FOLDER, exist_ok=True)
 
 conversion_queues = {}
 
+app = Flask(__name__)
+app.secret_key = 'rknn_secret_key'
+
+# SQLAlchemy DB config from environment or default
+app.config['SQLALCHEMY_DATABASE_URI'] = (
+    f"mysql+pymysql://{os.environ.get('DB_USER', 'rknn')}:"
+    f"{os.environ.get('DB_PASSWORD', 'rknnpass')}@"
+    f"{os.environ.get('DB_HOST', 'localhost')}/"
+    f"{os.environ.get('DB_NAME', 'rknnwebui')}"
+)
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+
+class FileInfo(db.Model):
+    __tablename__ = 'file_infos'
+    filename = db.Column(db.String(255), primary_key=True)
+    platform = db.Column(db.String(32))
+    model_type = db.Column(db.String(16))
+    created = db.Column(db.String(32))
+
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(64), unique=True, nullable=False)
+    password_hash = db.Column(db.String(128), nullable=False)
+    # Add more fields as needed
+
+with app.app_context():
+    db.create_all()
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS file_infos (
+        filename TEXT PRIMARY KEY,
+        platform TEXT,
+        model_type TEXT,
+        created TEXT
+    )''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def save_file_info(filename, platform, model_type, created):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('REPLACE INTO file_infos (filename, platform, model_type, created) VALUES (?, ?, ?, ?)',
+              (filename, platform, model_type, created))
+    conn.commit()
+    conn.close()
+
+def get_file_info(filename):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT platform, model_type, created FROM file_infos WHERE filename=?', (filename,))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        return {'platform': row[0], 'model_type': row[1], 'created': row[2]}
+    return None
+
 def load_config():
     with open(CONFIG_PATH, 'r') as f:
         return json.load(f)
-
-app = Flask(__name__)
-app.secret_key = 'rknn_secret_key'
 
 global_config = load_config()
 
@@ -115,8 +179,10 @@ def export():
                 # Use global default_platform if set and no platform selected
                 platform_ = request.form.get('platform') or default_platform or 'rk3576'
                 dtype = request.form.get('dtype', 'fp')
-                output_name = filename.rsplit('.', 1)[0] + '.rknn'
+                output_name = filename.rsplit('.', 1)[0] + f'_{platform_}_{dtype}.rknn'
                 output_path = os.path.join(CONVERTED_FOLDER, output_name)
+                # Save file info to SQLite DB
+                save_file_info(output_name, platform_, dtype, datetime.datetime.now().strftime('%Y-%m-%d %H:%M'))
                 cmd = [
                     'python3', 'convert.py',
                     upload_path, platform_, dtype, output_path
@@ -138,7 +204,46 @@ def export():
 def files():
     uploaded = os.listdir(UPLOAD_FOLDER)
     converted = os.listdir(CONVERTED_FOLDER)
-    return render_template('files.html', config=global_config, uploaded=uploaded, converted=converted)
+    # Additional information for RKNN models (from filename or metadata file, here as example dummy parsing)
+    def parse_rknn_info(fname):
+        # Robust: Search for known platform and model type in the name
+        platforms = ['rk3562', 'rk3566', 'rk3568', 'rk3576', 'rk3588', 'rv1126b']
+        model_types = ['fp', 'i8', 'u8']
+        platform = '-'
+        model_type = '-'
+        for p in platforms:
+            if p in fname:
+                platform = p
+                break
+        for t in model_types:
+            if f'_{t}' in fname or fname.endswith(f'_{t}.rknn'):
+                model_type = t
+                break
+        return platform, model_type
+
+    def file_info(folder, fname, is_converted=False):
+        try:
+            path = os.path.join(folder, fname)
+            stat = os.stat(path)
+            dt = datetime.datetime.fromtimestamp(stat.st_mtime)
+            info = dt.strftime('%Y-%m-%d %H:%M')
+            if is_converted:
+                meta = get_file_info(fname)
+                if meta:
+                    platform = meta.get('platform', '-')
+                    model_type = meta.get('model_type', '-')
+                    created = meta.get('created', info)
+                    return f"Converted: {created} | Platform: {platform} | Model Type: {model_type}"
+                else:
+                    platform, model_type = parse_rknn_info(fname)
+                    return f"Converted: {info} | Platform: {platform} | Model Type: {model_type}"
+            else:
+                return f"Uploaded: {info}"
+        except Exception:
+            return ''
+    uploaded_infos = {f: file_info(UPLOAD_FOLDER, f) for f in uploaded}
+    converted_infos = {f: file_info(CONVERTED_FOLDER, f, is_converted=True) for f in converted}
+    return render_template('files.html', config=global_config, uploaded=uploaded, converted=converted, uploaded_infos=uploaded_infos, converted_infos=converted_infos)
 
 @app.route('/download/<folder>/<filename>')
 def download_file(folder, filename):

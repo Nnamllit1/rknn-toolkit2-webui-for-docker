@@ -39,6 +39,16 @@ case "$1" in
     echo "Rebuilding container..."
     docker compose build
     ;;
+  cleanup)
+    echo "Are you sure you want to remove all containers and images (may have unwanted side effects)? (y/n)"
+    read -r answer
+    if [ "$answer" = "y" ]; then
+      echo "Removing all containers and images..."
+      docker system prune -a --volumes
+    else
+      echo "Cleanup aborted."
+    fi
+    ;;
   config)
     if [ "$2" = "show" ]; then
       show_config
@@ -50,7 +60,7 @@ case "$1" in
     fi
     ;;
   *)
-    echo "Usage: $0 {start|stop|restart|status|logs|build|config show|config set <key> <value>}"
+    echo "Usage: $0 {start|stop|restart|status|logs|build|config show|cleanup|config set <key> <value>}"
     exit 1
     ;;
 esac

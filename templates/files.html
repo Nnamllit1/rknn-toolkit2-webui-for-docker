@@ -5,7 +5,8 @@
     <h2>Uploaded ONNX Models</h2>
     <ul>
     {% for f in uploaded %}
-        <li>{{ f }}
+        <li>
+            {{ f }}
             <a href="/download/uploads/{{ f }}" title="Download"><i class="fas fa-download"></i></a>
             <form method="post" action="/delete/uploads/{{ f }}" style="display:inline;">
                 <button type="submit" onclick="return confirm('Delete {{ f }}?');" title="Delete"><i class="fas fa-trash"></i></button>
@@ -18,7 +19,9 @@
     <h2>Converted RKNN Models</h2>
     <ul>
     {% for f in converted %}
-        <li>{{ f }}
+        <li>
+            {{ f }}
+            <span style="font-size:0.95em;color:#888;white-space:nowrap;">{{ converted_infos[f]|default('') }}</span>
             <a href="/download/converted/{{ f }}" title="Download"><i class="fas fa-download"></i></a>
             <form method="post" action="/delete/converted/{{ f }}" style="display:inline;">
                 <button type="submit" onclick="return confirm('Delete {{ f }}?');" title="Delete"><i class="fas fa-trash"></i></button>

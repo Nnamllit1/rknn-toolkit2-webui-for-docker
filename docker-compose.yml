@@ -1,9 +1,30 @@
-version: '3.8'
 services:
   web:
     build: .
     container_name: rknn-webui
-    network_mode: host
     volumes:
       - .:/app
     restart: unless-stopped
+    environment:
+      - DB_HOST=127.0.0.1
+      - DB_USER=rknn
+      - DB_PASSWORD=rknnpass
+      - DB_NAME=rknnwebui
+    depends_on:
+      - db
+    network_mode: host
+  db:
+    image: mysql:8.0
+    container_name: rknn-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: rknnwebui
+      MYSQL_USER: rknn
+      MYSQL_PASSWORD: rknnpass
+    volumes:
+      - db_data:/var/lib/mysql
+    network_mode: host
+    
+volumes:
+  db_data:
