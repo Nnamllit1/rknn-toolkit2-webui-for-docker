@@ -6,6 +6,44 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="stylesheet" href="/static/style.css">
     {% block head %}{% endblock %}
+    <style>
+    .profile-fab {
+      position: fixed;
+      left: 24px;
+      bottom: 24px;
+      background: #222;
+      color: #fff;
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      cursor: pointer;
+      z-index: 1000;
+    }
+    .profile-menu {
+      display: none;
+      position: fixed;
+      left: 24px;
+      bottom: 80px;
+      background: #fff;
+      color: #222;
+      border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+      min-width: 180px;
+      z-index: 1001;
+      padding: 10px 0;
+    }
+    .profile-menu.active { display: block; }
+    .profile-menu ul { list-style: none; margin: 0; padding: 0; }
+    .profile-menu li { padding: 8px 20px; }
+    .profile-menu li a { color: #222; text-decoration: none; display: flex; align-items: center; }
+    .profile-menu li a i { margin-right: 8px; }
+    .profile-menu li:hover { background: #f0f0f0; }
+    .profile-info { padding: 8px 20px; font-weight: bold; border-bottom: 1px solid #eee; }
+    </style>
 </head>
 <body>
 <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Dark/Light Mode"><i id="theme-icon" class="fas fa-moon"></i></button>
@@ -17,6 +55,9 @@
                 <li><a href="/export" class="nav-export"><i class="fas fa-file-export"></i> Export / convert RKNN Model</a></li>
                 <li><a href="/files" class="nav-files"><i class="fas fa-folder-open"></i> Files</a></li>
                 <li><a href="/settings" class="nav-settings"><i class="fas fa-cog"></i> Settings</a></li>
+                {% if session.get('user_id') %}
+                  <li><a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                {% endif %}
             </ul>
         </nav>
     </div>
@@ -24,12 +65,40 @@
         {% block content %}{% endblock %}
     </div>
 </div>
+<div class="profile-fab" onclick="toggleProfileMenu()">
+  <i class="fas fa-user-circle fa-2x"></i>
+</div>
+<div id="profile-menu" class="profile-menu">
+  <div class="profile-info">
+    <span><i class="fas fa-user"></i> {{ session.get('username', 'User') }}</span>
+  </div>
+  <ul>
+    <li><a href="{{ url_for('settings') }}"><i class="fas fa-cog"></i> Settings</a></li>
+    <li><a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+    {% if session.get('is_admin') %}
+    <li><a href="{{ url_for('users') }}"><i class="fas fa-users"></i> User Management</a></li>
+    {% endif %}
+  </ul>
+</div>
 {% if config %}
 <script type="text/javascript">
   window.config = {{ config|tojson|safe }};
 </script>
 {% endif %}
 <script src="/static/theme.js"></script>
+<script>
+function toggleProfileMenu() {
+  var menu = document.getElementById('profile-menu');
+  menu.classList.toggle('active');
+}
+document.addEventListener('click', function(e) {
+  var menu = document.getElementById('profile-menu');
+  var fab = document.querySelector('.profile-fab');
+  if (!menu.contains(e.target) && !fab.contains(e.target)) {
+    menu.classList.remove('active');
+  }
+});
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

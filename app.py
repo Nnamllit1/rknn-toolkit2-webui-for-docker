@@ -1,6 +1,7 @@
 import json
-from flask import Flask, render_template, request, send_from_directory, redirect, url_for, flash, Response
+from flask import Flask, render_template, request, send_from_directory, redirect, url_for, flash, Response, session
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import subprocess
 import platform
@@ -11,6 +12,7 @@ import queue
 import datetime
 import sqlite3
 from flask_sqlalchemy import SQLAlchemy
+from functools import wraps
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config.json')
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
@@ -48,7 +50,8 @@ class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False)  # Admin flag
     # Add more fields as needed
 
 with app.app_context():
@@ -91,6 +94,84 @@ def load_config():
         return json.load(f)
 
 global_config = load_config()
+
+# Auth config from config.json
+LOGIN_REQUIRED = global_config.get('auth_enabled', False)
+
+# Login required decorator
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if LOGIN_REQUIRED and not session.get('user_id'):
+            return redirect(url_for('login', next=request.url))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if not LOGIN_REQUIRED:
+        return redirect(url_for('index'))
+    message = None
+    # config ohne nicht-serialisierbare Objekte an das Template geben
+    def make_json_safe(obj):
+        if isinstance(obj, dict):
+            return {k: make_json_safe(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [make_json_safe(v) for v in obj]
+        elif isinstance(obj, datetime.timedelta):
+            return str(obj)
+        elif isinstance(obj, datetime.datetime):
+            return obj.isoformat()
+        return obj
+    safe_config = make_json_safe(global_config)
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        user = User.query.filter_by(username=username).first()
+        if user and check_password_hash(user.password_hash, password):
+            session['user_id'] = user.id
+            session['username'] = user.username
+            return redirect(url_for('index'))
+        else:
+            message = 'Ungültiger Benutzername oder Passwort.'
+    return render_template('login.html', message=message, config=safe_config)
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('You have been logged out.')
+    return redirect(url_for('login'))
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if not LOGIN_REQUIRED:
+        return redirect(url_for('index'))
+    message = None
+    def make_json_safe(obj):
+        if isinstance(obj, dict):
+            return {k: make_json_safe(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [make_json_safe(v) for v in obj]
+        elif isinstance(obj, datetime.timedelta):
+            return str(obj)
+        elif isinstance(obj, datetime.datetime):
+            return obj.isoformat()
+        return obj
+    safe_config = make_json_safe(global_config)
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        if User.query.filter_by(username=username).first():
+            message = 'Benutzername existiert bereits.'
+        else:
+            # Check if this is the first user
+            is_first_user = User.query.count() == 0
+            user = User(username=username, password_hash=generate_password_hash(password), is_admin=is_first_user)
+            db.session.add(user)
+            db.session.commit()
+            message = 'Registrierung erfolgreich. Bitte einloggen.'
+            return redirect(url_for('login'))
+    return render_template('register.html', message=message, config=safe_config)
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -143,10 +224,12 @@ def run_conversion(cmd, q):
     q.put(None)
 
 @app.route('/', methods=['GET'])
+@login_required
 def index():
     return render_template('index.html', config=global_config)
 
 @app.route('/settings', methods=['GET'])
+@login_required
 def settings():
     server_info = get_server_info() if global_config.get('show_server_info', True) else None
     # Determine current theme from config and/or localStorage (for display only)
@@ -154,6 +237,7 @@ def settings():
     return render_template('settings.html', config=global_config, saved=False, server_info=server_info, current_theme=current_theme)
 
 @app.route('/export', methods=['GET', 'POST'])
+@login_required
 def export():
     message = None
     task_id = None
@@ -201,6 +285,7 @@ def export():
     return render_template('export.html', config=global_config, message=message, platforms=platforms, task_id=task_id, default_platform=default_platform)
 
 @app.route('/files', methods=['GET'])
+@login_required
 def files():
     uploaded = os.listdir(UPLOAD_FOLDER)
     converted = os.listdir(CONVERTED_FOLDER)
@@ -246,6 +331,7 @@ def files():
     return render_template('files.html', config=global_config, uploaded=uploaded, converted=converted, uploaded_infos=uploaded_infos, converted_infos=converted_infos)
 
 @app.route('/download/<folder>/<filename>')
+@login_required
 def download_file(folder, filename):
     if folder == 'uploads':
         return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
@@ -255,6 +341,7 @@ def download_file(folder, filename):
         return 'Invalid folder', 404
 
 @app.route('/delete/<folder>/<filename>', methods=['POST'])
+@login_required
 def delete_file(folder, filename):
     if folder == 'uploads':
         path = os.path.join(UPLOAD_FOLDER, filename)
@@ -266,6 +353,111 @@ def delete_file(folder, filename):
         os.remove(path)
         flash(f'{filename} deleted.')
     return redirect(url_for('files'))
+
+@app.route('/users')
+@login_required
+def users():
+    current_user = User.query.get(session.get('user_id'))
+    if not current_user or not current_user.is_admin:
+        flash('Admin rights required.')
+        return redirect(url_for('index'))
+    all_users = User.query.all()
+    def make_json_safe(obj):
+        if isinstance(obj, dict):
+            return {k: make_json_safe(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [make_json_safe(v) for v in obj]
+        elif isinstance(obj, datetime.timedelta):
+            return str(obj)
+        elif isinstance(obj, datetime.datetime):
+            return obj.isoformat()
+        return obj
+    safe_config = make_json_safe(global_config)
+    return render_template('users.html', users=all_users, current_user=current_user, config=safe_config)
+
+@app.route('/users/delete/<int:user_id>', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    current_user = User.query.get(session.get('user_id'))
+    if not current_user or not current_user.is_admin:
+        flash('Admin rights required.')
+        return redirect(url_for('users'))
+    if user_id == current_user.id:
+        flash('You cannot delete yourself.')
+        return redirect(url_for('users'))
+    user = User.query.get(user_id)
+    if user:
+        db.session.delete(user)
+        db.session.commit()
+        flash('User deleted.')
+    return redirect(url_for('users'))
+
+@app.route('/users/update/<int:user_id>', methods=['POST'])
+@login_required
+def update_user(user_id):
+    current_user = User.query.get(session.get('user_id'))
+    if not current_user or not current_user.is_admin:
+        flash('Admin rights required.')
+        return redirect(url_for('users'))
+    user = User.query.get(user_id)
+    if not user:
+        flash('User not found.')
+        return redirect(url_for('users'))
+    # Username ändern
+    new_username = request.form.get('username')
+    if new_username and new_username != user.username:
+        if User.query.filter_by(username=new_username).first():
+            flash('Username already exists.')
+            return redirect(url_for('users'))
+        user.username = new_username
+    # Adminrechte setzen
+    if user.id != current_user.id:
+        user.is_admin = bool(request.form.get('is_admin'))
+    # Passwort ändern, wenn neues Passwort angegeben
+    new_password = request.form.get('new_password')
+    if new_password:
+        user.password_hash = generate_password_hash(new_password)
+        flash(f"Password for {user.username} changed.")
+    db.session.commit()
+    flash('User updated.')
+    return redirect(url_for('users'))
+
+@app.route('/users/create', methods=['POST'])
+@login_required
+def create_user():
+    current_user = User.query.get(session.get('user_id'))
+    if not current_user or not current_user.is_admin:
+        flash('Admin rights required.')
+        return redirect(url_for('users'))
+    username = request.form.get('username')
+    password = request.form.get('password')
+    is_admin = bool(request.form.get('is_admin'))
+    if not username or not password:
+        flash('Username and password required.')
+        return redirect(url_for('users'))
+    if User.query.filter_by(username=username).first():
+        flash('Username already exists.')
+        return redirect(url_for('users'))
+    user = User(username=username, password_hash=generate_password_hash(password), is_admin=is_admin)
+    db.session.add(user)
+    db.session.commit()
+    flash(f'User {username} created.')
+    return redirect(url_for('users'))
+
+@app.before_request
+def require_login():
+    if LOGIN_REQUIRED:
+        allowed = {'login', 'register', 'static'}
+        if request.endpoint not in allowed and not session.get('user_id'):
+            return redirect(url_for('login', next=request.url))
+
+@app.before_request
+def inject_admin_flag():
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+        session['is_admin'] = bool(user.is_admin) if user else False
+    else:
+        session['is_admin'] = False
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

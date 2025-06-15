@@ -24,6 +24,7 @@ services:
       MYSQL_PASSWORD: rknnpass
     volumes:
       - db_data:/var/lib/mysql
+
     network_mode: host
     
 volumes:

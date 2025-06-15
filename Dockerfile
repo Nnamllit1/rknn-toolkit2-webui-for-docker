@@ -21,9 +21,12 @@ RUN pip install --no-cache-dir -r rknn-toolkit2/rknn-toolkit2/packages/arm64/arm
     pip install --no-cache-dir rknn-toolkit2/rknn-toolkit2/packages/arm64/rknn_toolkit2-2.3.2-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
 
 COPY requirements.txt ./
+#COPY init.sql ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py ./
+#COPY entrypoint.sh ./
+#RUN chmod +x entrypoint.sh
 
 EXPOSE 5000
 

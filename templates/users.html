@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>User Management</h2>
+<form class="user-create-form" method="post" action="{{ url_for('create_user') }}">
+  <strong>Add new user:</strong>
+  <input type="text" name="username" placeholder="Username" required class="user-input">
+  <input type="password" name="password" placeholder="Password" required class="user-input">
+  <label><input type="checkbox" name="is_admin" value="1"> Admin</label>
+  <button type="submit">Create</button>
+</form>
+<table class="user-table">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Username</th>
+      <th>Admin</th>
+      <th>New Password</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for user in users %}
+    <tr>
+      <form method="post" action="{{ url_for('update_user', user_id=user.id) }}">
+      <td>{{ user.id }}</td>
+      <td>
+        <input type="text" name="username" value="{{ user.username }}" {% if user.id == current_user.id %}readonly{% endif %} required class="user-input">
+      </td>
+      <td>
+        <input type="checkbox" name="is_admin" value="1" {% if user.is_admin %}checked{% endif %} {% if user.id == current_user.id %}disabled{% endif %}>
+      </td>
+      <td>
+        <input type="password" name="new_password" placeholder="New password" class="user-input">
+      </td>
+      <td>
+        {% if user.id != current_user.id %}
+          <button type="submit">Save</button>
+          <form method="post" action="{{ url_for('delete_user', user_id=user.id) }}" style="display:inline;">
+            <button type="submit" onclick="return confirm('Delete user {{ user.username }}?');">Delete</button>
+          </form>
+        {% else %}
+          (You)
+        {% endif %}
+      </td>
+      </form>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<a href="{{ url_for('index') }}">Back to Home</a>
+{% endblock %}

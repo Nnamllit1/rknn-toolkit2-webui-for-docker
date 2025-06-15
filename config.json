@@ -2,5 +2,6 @@
   "default_theme": "light",
   "default_platform": "rk3576",
   "show_server_info": true,
-  "allow_parallel_conversions": false
+  "allow_parallel_conversions": false,
+  "auth_enabled": true
 }
